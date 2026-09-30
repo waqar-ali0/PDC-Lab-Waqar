@@ -1,0 +1,41 @@
+==================
+WARNING: ThreadSanitizer: data race (pid=2226)
+  Write of size 8 at 0x555555558018 by thread T1:
+    #0 worker /mnt/c/Users/123/Desktop/PDC_Lab04/race.c:12 (race_tsan+0x1297) (BuildId: a2b6b09bf6f3aba9633259d7dddd869b3ccfee33)
+
+  Previous read of size 8 at 0x555555558018 by thread T2:
+    #0 worker /mnt/c/Users/123/Desktop/PDC_Lab04/race.c:12 (race_tsan+0x126a) (BuildId: a2b6b09bf6f3aba9633259d7dddd869b3ccfee33)
+
+  Location is global 'counter' of size 8 at 0x555555558018 (race_tsan+0x4018)
+
+  Thread T1 (tid=2228, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1078 (libtsan.so.2+0x5cb02) (BuildId: 66d37dc704b813df6c813b77217284deb43a0042)
+    #1 main /mnt/c/Users/123/Desktop/PDC_Lab04/race.c:23 (race_tsan+0x12f9) (BuildId: a2b6b09bf6f3aba9633259d7dddd869b3ccfee33)
+
+  Thread T2 (tid=2229, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1078 (libtsan.so.2+0x5cb02) (BuildId: 66d37dc704b813df6c813b77217284deb43a0042)
+    #1 main /mnt/c/Users/123/Desktop/PDC_Lab04/race.c:23 (race_tsan+0x12f9) (BuildId: a2b6b09bf6f3aba9633259d7dddd869b3ccfee33)
+
+SUMMARY: ThreadSanitizer: data race /mnt/c/Users/123/Desktop/PDC_Lab04/race.c:12 in worker
+==================
+==================
+WARNING: ThreadSanitizer: data race (pid=2226)
+  Write of size 8 at 0x555555558018 by thread T3:
+    #0 worker /mnt/c/Users/123/Desktop/PDC_Lab04/race.c:12 (race_tsan+0x1297) (BuildId: a2b6b09bf6f3aba9633259d7dddd869b3ccfee33)
+
+  Previous write of size 8 at 0x555555558018 by thread T2:
+    #0 worker /mnt/c/Users/123/Desktop/PDC_Lab04/race.c:12 (race_tsan+0x1297) (BuildId: a2b6b09bf6f3aba9633259d7dddd869b3ccfee33)
+
+  Location is global 'counter' of size 8 at 0x555555558018 (race_tsan+0x4018)
+
+  Thread T3 (tid=2230, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1078 (libtsan.so.2+0x5cb02) (BuildId: 66d37dc704b813df6c813b77217284deb43a0042)
+    #1 main /mnt/c/Users/123/Desktop/PDC_Lab04/race.c:23 (race_tsan+0x12f9) (BuildId: a2b6b09bf6f3aba9633259d7dddd869b3ccfee33)
+
+  Thread T2 (tid=2229, running) created by main thread at:
+    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:1078 (libtsan.so.2+0x5cb02) (BuildId: 66d37dc704b813df6c813b77217284deb43a0042)
+    #1 main /mnt/c/Users/123/Desktop/PDC_Lab04/race.c:23 (race_tsan+0x12f9) (BuildId: a2b6b09bf6f3aba9633259d7dddd869b3ccfee33)
+
+SUMMARY: ThreadSanitizer: data race /mnt/c/Users/123/Desktop/PDC_Lab04/race.c:12 in worker
+==================
+ThreadSanitizer: reported 2 warnings

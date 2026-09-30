@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lab 04 Report - Concurrency Issues</title>
+<style>
+  body { font-family: 'Times New Roman', serif; margin: 40px 60px; line-height: 1.6; color: #000; font-size: 13px; }
+  h1 { text-align: center; font-size: 22px; margin-bottom: 2px; }
+  h2 { font-size: 17px; border-bottom: 1px solid #333; padding-bottom: 3px; margin-top: 28px; }
+  h3 { font-size: 14px; margin-top: 18px; }
+  .center { text-align: center; }
+  .info-table { margin: 10px auto; border-collapse: collapse; }
+  .info-table td { padding: 3px 14px; }
+  .info-table td:first-child { font-weight: bold; }
+  table.data { border-collapse: collapse; width: 100%; margin: 10px 0; }
+  table.data th, table.data td { border: 1px solid #333; padding: 5px 10px; text-align: center; }
+  table.data th { background: #e8e8e8; }
+  pre { background: #f4f4f4; border: 1px solid #ccc; padding: 10px; font-size: 11px; overflow-x: auto; white-space: pre-wrap; }
+  .code-block { background: #f4f4f4; border: 1px solid #ccc; padding: 10px; font-family: 'Courier New', monospace; font-size: 11px; white-space: pre; overflow-x: auto; margin: 10px 0; }
+  .answer { margin: 6px 0 6px 20px; }
+  @media print { body { margin: 20px 40px; } .page-break { page-break-before: always; } }
+  .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<h1>Air University</h1>
+<p class="center">Department of Computer Science</p>
+<p class="center"><b>Introduction to Parallel &amp; Distributed Computing</b></p>
+<p class="center" style="font-size:18px;"><b>Lab 04: Concurrency Issues</b></p>
+
+<table class="info-table">
+  <tr><td>Course Code</td><td>CS426L</td></tr>
+  <tr><td>Semester</td><td>VII C (FALL26)</td></tr>
+  <tr><td>Instructor</td><td>Muhammad Nauman Zafar Hashmi</td></tr>
+  <tr><td>Student Name</td><td>Waqar Ali</td></tr>
+</table>
+
+<hr>
+
+<h2>Task 1: Unsynchronized Counter (Shared-State Hazard)</h2>
+
+<h3>Source Code (race.c)</h3>
+<div class="code-block">#include &lt;stdio.h&gt;
+#include &lt;pthread.h&gt;
+
+#define NUM_THREADS 4
+#define INCREMENTS_PER_THREAD 1000000
+
+long counter = 0;
+
+void *worker(void *arg)
+{
+    int i;
+    for (i = 0; i &lt; INCREMENTS_PER_THREAD; i++)
+        counter++;
+    return NULL;
+}
+
+int main()
+{
+    pthread_t threads[NUM_THREADS];
+    int i;
+
+    for (i = 0; i &lt; NUM_THREADS; i++)
+        pthread_create(&amp;threads[i], NULL, worker, NULL);
+
+    for (i = 0; i &lt; NUM_THREADS; i++)
+        pthread_join(threads[i], NULL);
+
+    long expected = (long)NUM_THREADS * INCREMENTS_PER_THREAD;
+    printf("Expected: %ld\n", expected);
+    printf("Actual:   %ld\n", counter);
+    printf("Lost:     %ld\n", expected - counter);
+
+    return 0;
+}</div>
+
+<h3>Compilation</h3>
+<pre>gcc -O0 -pthread race.c -o race</pre>
+
+<h3>Results (10 Runs)</h3>
+<table class="data">
+  <tr><th>Run</th><th>Expected Value</th><th>Actual Value</th><th>Lost Updates</th></tr>
+  <tr><td>1</td><td>4,000,000</td><td>1,479,081</td><td>2,520,919</td></tr>
+  <tr><td>2</td><td>4,000,000</td><td>1,413,751</td><td>2,586,249</td></tr>
+  <tr><td>3</td><td>4,000,000</td><td>1,186,634</td><td>2,813,366</td></tr>
+  <tr><td>4</td><td>4,000,000</td><td>1,531,804</td><td>2,468,196</td></tr>
+  <tr><td>5</td><td>4,000,000</td><td>1,300,370</td><td>2,699,630</td></tr>
+  <tr><td>6</td><td>4,000,000</td><td>1,340,367</td><td>2,659,633</td></tr>
+  <tr><td>7</td><td>4,000,000</td><td>1,119,026</td><td>2,880,974</td></tr>
+  <tr><td>8</td><td>4,000,000</td><td>1,265,237</td><td>2,734,763</td></tr>
+  <tr><td>9</td><td>4,000,000</td><td>1,193,274</td><td>2,806,726</td></tr>
+  <tr><td>10</td><td>4,000,000</td><td>1,315,830</td><td>2,684,170</td></tr>
+</table>
+<p><b>Number of logical cores (nproc):</b> 8</p>
+
+<h3>Discussion Questions</h3>
+
+<p><b>1. Did the actual value ever equal the expected value? Were any two runs identical? Why is the result non-deterministic?</b></p>
+<p class="answer">No the actual value never reached 4,000,000 in any of the 10 runs. And no two runs gave the same number either. This happens because the thread scheduler in the OS decides when to run each thread and that timing is different every time we run the program. Since counter++ is not an atomic operation, the threads keep overlapping and losing updates differently each time.</p>
+
+<p><b>2. Using the load/add/store breakdown of counter++, explain how one increment can be lost.</b></p>
+<p class="answer">So counter++ is actually 3 steps - first it loads the value from memory, then adds 1, then stores it back. If thread A loads counter and gets 5, but before it can store 6, thread B also loads counter and also gets 5. Then thread A stores 6, and thread B also stores 6. So we did 2 increments but counter only went from 5 to 6 instead of 5 to 7. One update got lost.</p>
+
+<p><b>3. If INCREMENTS_PER_THREAD were reduced to 100, would the race disappear?</b></p>
+<p class="answer">No the race condition is still there in the code. With only 100 increments the threads would finish so fast that they might not even overlap much, so the output could look correct. But thats just luck, the bug is still there. Just because the output looks right doesnt mean the program is safe from races.</p>
+
+<div class="page-break"></div>
+<h2>Task 2: Detecting the Race with ThreadSanitizer</h2>
+
+<h3>Compilation</h3>
+<pre>gcc -fsanitize=thread -g -O1 -pthread race.c -o race_tsan
+./race_tsan 2&gt; tsan_report.txt</pre>
+
+<h3>ThreadSanitizer Report</h3>
+<pre>==================
+WARNING: ThreadSanitizer: data race (pid=2226)
+  Write of size 8 at 0x555555558018 by thread T1:
+    #0 worker race.c:12 (race_tsan+0x1297)
+
+  Previous read of size 8 at 0x555555558018 by thread T2:
+    #0 worker race.c:12 (race_tsan+0x126a)
+
+  Location is global 'counter' of size 8 at 0x555555558018
+
+  Thread T1 (tid=2228, running) created by main thread at:
+    #0 pthread_create ...
+    #1 main race.c:23
+
+  Thread T2 (tid=2229, running) created by main thread at:
+    #0 pthread_create ...
+    #1 main race.c:23
+
+SUMMARY: ThreadSanitizer: data race race.c:12 in worker
+==================
+WARNING: ThreadSanitizer: data race (pid=2226)
+  Write of size 8 at 0x555555558018 by thread T3:
+    #0 worker race.c:12 (race_tsan+0x1297)
+
+  Previous write of size 8 at 0x555555558018 by thread T2:
+    #0 worker race.c:12 (race_tsan+0x1297)
+
+  Location is global 'counter' of size 8 at 0x555555558018
+
+  Thread T3 (tid=2230, running) created by main thread at:
+    #0 pthread_create ...
+    #1 main race.c:23
+
+SUMMARY: ThreadSanitizer: data race race.c:12 in worker
+==================
+ThreadSanitizer: reported 2 warnings</pre>
+
+<p><b>TSan build output:</b> Expected: 4,000,000 | Actual: 2,000,000 | Lost: 2,000,000</p>
+
+<h3>Interpretation Table</h3>
+<table class="data">
+  <tr><th>Item</th><th>Observation</th></tr>
+  <tr><td>Type of access #1 and source line</td><td>Write of size 8, at race.c line 12</td></tr>
+  <tr><td>Type of access #2 ("Previous") and source line</td><td>Read of size 8 (1st warning) / Write of size 8 (2nd warning), race.c line 12</td></tr>
+  <tr><td>Memory location (variable name)</td><td>Global variable 'counter'</td></tr>
+  <tr><td>Threads involved and where created</td><td>T1, T2, T3 - created by main thread at race.c line 23</td></tr>
+  <tr><td>Number of warnings in one run</td><td>2</td></tr>
+  <tr><td>Final counter value (TSan build)</td><td>2,000,000</td></tr>
+</table>
+
+<h3>Discussion Questions</h3>
+
+<p><b>1. Which line did TSan blame? Why are both accesses on the same line?</b></p>
+<p class="answer">TSan pointed to line 12 which is where counter++ is. Both accesses show the same line because counter++ does a read and a write on the same variable, so when two threads run that same line at once their reads and writes conflict with each other on the same location.</p>
+
+<p><b>2. How can TSan flag a race even when the final value looks correct?</b></p>
+<p class="answer">TSan doesnt check if the output is right or wrong. It checks whether memory accesses are properly synchronized. So even if by luck the threads didnt interleave badly and the counter came out correct, TSan can still see that the accesses were not ordered by any lock or synchronization, and it reports the race anyway.</p>
+
+<p><b>3. Task 1 showed the symptom; TSan shows the cause. Explain the difference.</b></p>
+<p class="answer">In Task 1 we saw the symptom which was a wrong total. But sometimes the total might come out right by luck. TSan on the other hand finds the actual cause - it shows that threads are accessing the same memory without any synchronization. So we need tools like TSan because just testing the output is not enough to prove there are no races.</p>
+
+<p><b>4. Why should the TSan build not be used for timing?</b></p>
+<p class="answer">Because TSan adds a lot of overhead by instrumenting every memory access. It makes the program like 5-15x slower. So if we measured timing with TSan on, the numbers would be way off and not represent the actual performance of mutex vs atomic.</p>
+
+<div class="page-break"></div>
+<h2>Task 3: Fixing the Race with a Mutex</h2>
+
+<h3>Source Code (race_mutex.c)</h3>
+<div class="code-block">#include &lt;stdio.h&gt;
+#include &lt;pthread.h&gt;
+
+#define NUM_THREADS 4
+#define INCREMENTS_PER_THREAD 1000000
+
+long counter = 0;
+pthread_mutex_t counter_lock = PTHREAD_MUTEX_INITIALIZER;
+
+void *worker(void *arg)
+{
+    int i;
+    for (i = 0; i &lt; INCREMENTS_PER_THREAD; i++) {
+        pthread_mutex_lock(&amp;counter_lock);
+        counter++;
+        pthread_mutex_unlock(&amp;counter_lock);
+    }
+    return NULL;
+}
+
+int main()
+{
+    pthread_t threads[NUM_THREADS];
+    int i;
+
+    for (i = 0; i &lt; NUM_THREADS; i++)
+        pthread_create(&amp;threads[i], NULL, worker, NULL);
+
+    for (i = 0; i &lt; NUM_THREADS; i++)
+        pthread_join(threads[i], NULL);
+
+    long expected = (long)NUM_THREADS * INCREMENTS_PER_THREAD;
+    printf("Expected: %ld\n", expected);
+    printf("Actual:   %ld\n", counter);
+    printf("Correct:  %s\n", (expected == counter) ? "YES" : "NO");
+
+    return 0;
+}</div>
+
+<h3>Compilation</h3>
+<pre>gcc -O0 -pthread race_mutex.c -o race_mutex</pre>
+
+<h3>Results (10 Runs)</h3>
+<table class="data">
+  <tr><th>Run</th><th>Expected Value</th><th>Actual Value</th><th>Correct?</th><th>TSan Warnings</th></tr>
+  <tr><td>1</td><td>4,000,000</td><td>4,000,000</td><td>YES</td><td>n/a</td></tr>
+  <tr><td>2</td><td>4,000,000</td><td>4,000,000</td><td>YES</td><td>n/a</td></tr>
+  <tr><td>3</td><td>4,000,000</td><td>4,000,000</td><td>YES</td><td>n/a</td></tr>
+  <tr><td>4</td><td>4,000,000</td><td>4,000,000</td><td>YES</td><td>n/a</td></tr>
+  <tr><td>5</td><td>4,000,000</td><td>4,000,000</td><td>YES</td><td>n/a</td></tr>
+  <tr><td>6</td><td>4,000,000</td><td>4,000,000</td><td>YES</td><td>n/a</td></tr>
+  <tr><td>7</td><td>4,000,000</td><td>4,000,000</td><td>YES</td><td>n/a</td></tr>
+  <tr><td>8</td><td>4,000,000</td><td>4,000,000</td><td>YES</td><td>n/a</td></tr>
+  <tr><td>9</td><td>4,000,000</td><td>4,000,000</td><td>YES</td><td>n/a</td></tr>
+  <tr><td>10</td><td>4,000,000</td><td>4,000,000</td><td>YES</td><td>n/a</td></tr>
+  <tr><td>TSan build</td><td>4,000,000</td><td>4,000,000</td><td>YES</td><td><b>0</b></td></tr>
+</table>
+
+<h3>Discussion Questions</h3>
+
+<p><b>1. Was the actual value correct in all 10 runs? Why is this alone not conclusive?</b></p>
+<p class="answer">Yes all 10 runs gave the correct answer 4,000,000. But just getting correct output isnt enough proof because we saw in Task 1 that a race can sometimes give a right-looking answer by coincidence. The real proof came from the TSan run which showed 0 warnings, confirming the synchronization is actually working properly.</p>
+
+<p><b>2. main() reads counter after the joins without taking the lock. Why is that safe?</b></p>
+<p class="answer">Because pthread_join() guarantees that once it returns, all the writes that thread made are visible to us. After joining all 4 threads, no other thread is running anymore so theres no one to race with. So reading counter without the lock is fine at that point.</p>
+
+<p><b>3. What if only 3 of 4 threads used the lock?</b></p>
+<p class="answer">Then we would still have a race. The 4th thread doing bare counter++ could interleave with the other threads even while they hold the lock, because the lock doesnt stop threads that dont use it. Every thread has to use the same lock for it to work.</p>
+
+<p><b>4. Lock around each increment vs. around the whole loop?</b></p>
+<p class="answer">If we lock around each single increment, the threads can take turns between increments so there is some parallelism but the overhead of locking/unlocking 4 million times is high. If we lock around the whole loop, each thread runs all its increments alone with no parallelism at all, but theres only 4 lock/unlock calls. Both give correct results. We used per-increment locking here to show minimal critical sections.</p>
+
+<div class="page-break"></div>
+<h2>Task 4: Atomic Increment vs. Critical Section</h2>
+
+<h3>Source Code (counter_bench.c)</h3>
+<div class="code-block">#include &lt;stdio.h&gt;
+#include &lt;pthread.h&gt;
+#include &lt;time.h&gt;
+
+#define NUM_THREADS 4
+#define INCREMENTS_PER_THREAD 1000000
+
+long counter = 0;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+
+void *worker_mutex(void *arg)
+{
+    int i;
+    for (i = 0; i &lt; INCREMENTS_PER_THREAD; i++) {
+        pthread_mutex_lock(&amp;lock);
+        counter++;
+        pthread_mutex_unlock(&amp;lock);
+    }
+    return NULL;
+}
+
+void *worker_sync(void *arg)
+{
+    int i;
+    for (i = 0; i &lt; INCREMENTS_PER_THREAD; i++) {
+        __sync_fetch_and_add(&amp;counter, 1);
+    }
+    return NULL;
+}
+
+double get_time_ms()
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &amp;ts);
+    return ts.tv_sec * 1000.0 + ts.tv_nsec / 1000000.0;
+}
+
+void run_test(const char *name, void *(*func)(void *))
+{
+    pthread_t threads[NUM_THREADS];
+    int i;
+
+    counter = 0;
+    double start = get_time_ms();
+
+    for (i = 0; i &lt; NUM_THREADS; i++)
+        pthread_create(&amp;threads[i], NULL, func, NULL);
+
+    for (i = 0; i &lt; NUM_THREADS; i++)
+        pthread_join(threads[i], NULL);
+
+    double elapsed = get_time_ms() - start;
+    long expected = (long)NUM_THREADS * INCREMENTS_PER_THREAD;
+
+    printf("[%s] expected=%ld actual=%ld correct=%s time=%.2f ms\n",
+           name, expected, counter,
+           (expected == counter) ? "YES" : "NO", elapsed);
+}
+
+int main()
+{
+    run_test("mutex", worker_mutex);
+    run_test("__sync_fetch_and_add", worker_sync);
+    return 0;
+}</div>
+
+<h3>Compilation</h3>
+<pre>gcc -O2 -pthread -std=gnu11 counter_bench.c -o bench</pre>
+
+<h3>Results (5 Runs)</h3>
+<table class="data">
+  <tr><th>Run</th><th>Mutex Time (ms)</th><th>__sync Atomic Time (ms)</th></tr>
+  <tr><td>1</td><td>395.09</td><td>131.37</td></tr>
+  <tr><td>2</td><td>556.95</td><td>137.89</td></tr>
+  <tr><td>3</td><td>494.23</td><td>179.10</td></tr>
+  <tr><td>4</td><td>402.07</td><td>111.11</td></tr>
+  <tr><td>5</td><td>399.92</td><td>133.84</td></tr>
+  <tr><td><b>Average</b></td><td><b>449.65</b></td><td><b>138.66</b></td></tr>
+  <tr><td><b>Correct in all?</b></td><td><b>YES</b></td><td><b>YES</b></td></tr>
+</table>
+
+<p><b>Ratio (avg mutex / avg atomic):</b> 449.65 / 138.66 = <b>~3.24x</b></p>
+<p><b>Threads:</b> 4 &nbsp; | &nbsp; <b>Increments per thread:</b> 1,000,000</p>
+
+<h3>TSan Verification</h3>
+<pre>gcc -fsanitize=thread -g -O1 -pthread -std=gnu11 counter_bench.c -o bench_tsan
+./bench_tsan
+[mutex] expected=4000000 actual=4000000 correct=YES time=6386.18 ms
+[__sync_fetch_and_add] expected=4000000 actual=4000000 correct=YES time=1705.23 ms
+ThreadSanitizer warnings: 0</pre>
+
+<h3>Discussion Questions</h3>
+
+<p><b>1. Did the atomic version produce correct total in every run?</b></p>
+<p class="answer">Yes it did. All 5 runs gave exactly 4,000,000. Compared to Task 1 where the unsynchronized version was losing more than half of the updates, the atomic version works perfectly because __sync_fetch_and_add does the whole read-modify-write as one step that cant be interrupted.</p>
+
+<p><b>2. Which was faster, and by how much? Why?</b></p>
+<p class="answer">The atomic version was around 3.24 times faster. I think this is because mutex needs to make system calls for lock and unlock every single time, and it puts threads to sleep when they cant get the lock which adds overhead. The atomic operation is just one hardware instruction so its much lighter. No sleeping or waking up threads needed.</p>
+
+<p><b>3. Even the atomic version is far slower than a single thread. Why?</b></p>
+<p class="answer">Because all 4 threads are writing to the exact same variable. Every time one core updates counter, the cache line gets invalidated on all the other cores and they have to re-fetch it. This cache bouncing back and forth is called contention and it really slows things down even though theres no lock involved.</p>
+
+<p><b>4. Example where atomic cant work but mutex can?</b></p>
+<p class="answer">Like if you need to transfer money between two bank accounts - you have to subtract from one and add to the other, and both need to happen together. An atomic can only protect one variable at a time so it cant do both updates as a single unit. But with a mutex you can lock, update both variables, then unlock - so no one sees the state in between where money left one account but didnt arrive in the other yet.</p>
+
+<p><b>5. How would the ratio change with 1 thread or more threads than cores?</b></p>
+<p class="answer">With just 1 thread there is no contention at all so both would be fast and the ratio would be close to 1, maybe slightly above because mutex still has the overhead of lock/unlock calls even when nobody is contending. With more threads than cores like 8 or 16, the mutex version would get even worse because threads would get preempted while holding the lock and everyone else waits. The atomic version also gets slower but not as badly, so the ratio would probably get bigger.</p>
+
+</body>
+</html>
